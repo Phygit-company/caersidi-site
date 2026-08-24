@@ -38,6 +38,9 @@
     document.querySelectorAll("img[data-src]").forEach((image) => {
       image.src = image.dataset.src;
     });
+    document.querySelectorAll("img[data-fallback-url]").forEach((image) => {
+      if (!image.getAttribute("src")) image.src = toSiteUrl(image.dataset.fallbackUrl);
+    });
   };
 
   const collectResourceRefs = (value, refs = []) => {
@@ -161,6 +164,8 @@
   const valueByPlaceholder = (form, placeholder) =>
     form.querySelector(`[placeholder="${placeholder}"]`)?.value?.trim() || "";
 
+  const selectedValue = (form) => form.querySelector("select")?.value?.trim() || "";
+
   const setupContactForms = () => {
     document.querySelectorAll("form").forEach((form) => {
       if (!form.querySelector('input[type="email"]')) return;
@@ -171,6 +176,7 @@
           ["Phone", valueByPlaceholder(form, "Enter your phone number*")],
           ["Email", valueByPlaceholder(form, "Enter your email*")],
           ["Source", valueByPlaceholder(form, "How did you hear about us?")],
+          ["Region", selectedValue(form)],
           ["Message", valueByPlaceholder(form, "Type your message")],
         ].filter(([, value]) => value);
         const body = fields.map(([label, value]) => `${label}: ${value}`).join("\n\n");
@@ -192,17 +198,21 @@
   };
 
   const setupProductOrdering = () => {
+    const changeQuantity = (button, delta) => {
+      const input = button
+        .closest(".js-product-specs-quantity")
+        ?.querySelector('input[aria-label="Product quantity"]');
+      if (!input) return;
+      input.value = String(Math.max(1, Number(input.value || 1) + delta));
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+
     document.querySelectorAll('[aria-label="Increase quantity"]').forEach((button) => {
-      button.addEventListener("click", () => {
-        const input = button.parentElement?.querySelector('input[aria-label="Product quantity"]');
-        if (input) input.value = String(Math.max(1, Number(input.value || 1) + 1));
-      });
+      button.addEventListener("click", () => changeQuantity(button, 1));
     });
     document.querySelectorAll('[aria-label="Decrease quantity"]').forEach((button) => {
-      button.addEventListener("click", () => {
-        const input = button.parentElement?.querySelector('input[aria-label="Product quantity"]');
-        if (input) input.value = String(Math.max(1, Number(input.value || 1) - 1));
-      });
+      button.addEventListener("click", () => changeQuantity(button, -1));
     });
     document.querySelectorAll('[aria-label="Add to cart"]').forEach((button) => {
       button.addEventListener("click", (event) => {
@@ -225,7 +235,7 @@
     banner.setAttribute("aria-label", "Cookie notice");
     banner.innerHTML = `
       <p>This website uses cookies to provide you with the best user experience.
-      For a complete overview, see our <a href="/home/privacy-policy">Privacy Policy</a>.</p>
+      For a complete overview, see our <a href="${toSiteUrl("/home/privacy-policy")}">Privacy Policy</a>.</p>
       <button type="button">I agree</button>
     `;
     banner.querySelector("button").addEventListener("click", () => {
@@ -238,10 +248,10 @@
   const boot = () => {
     hydrateBackgrounds();
     hydrateImages();
-  hydrateEmbeddedImages();
-  revealAnimatedContent();
-  setupAnchorNavigation();
-  setupNavigation();
+    hydrateEmbeddedImages();
+    revealAnimatedContent();
+    setupAnchorNavigation();
+    setupNavigation();
     setupContactForms();
     setupProductOrdering();
     setupCookieBanner();
