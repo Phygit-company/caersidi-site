@@ -61,6 +61,10 @@ const failures = [];
 
 for (const sourceFile of sourceFiles) {
   const contents = await readFile(sourceFile, "utf8");
+  const referenceSource =
+    sourceFile.endsWith(".html") && contents.includes("data-caersidi-base")
+      ? path.join(siteDir, "index.html")
+      : sourceFile;
   const references = [];
 
   if (sourceFile.endsWith(".html")) {
@@ -77,7 +81,7 @@ for (const sourceFile of sourceFiles) {
   }
 
   for (const reference of new Set(references)) {
-    const missing = await localTarget(reference, sourceFile);
+    const missing = await localTarget(reference, referenceSource);
     if (missing) failures.push(`${path.relative(projectDir, sourceFile)} -> ${missing}`);
   }
 }

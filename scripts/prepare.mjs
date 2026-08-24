@@ -61,18 +61,39 @@ function fixLegacyMarkup(html, file) {
     .replaceAll("ten.idisreac%40troppus", "support@caersidi.net");
 }
 
+function makeDocumentBaseRelative(html) {
+  let result = html.replace(
+    /(\b(?:href|src|data-src)=(["']))\/(?!\/)([^"']*)/gi,
+    "$1$3",
+  );
+  result = result.replace(
+    /(\b(?:srcset|data-srcset)=(["']))([^"']*)/gi,
+    (full, prefix, _quote, value) =>
+      `${prefix}${value
+        .split(",")
+        .map((candidate) => candidate.replace(/^(\s*)\/(?!\/)/, "$1"))
+        .join(",")}`,
+  );
+  return result;
+}
+
 function injectMigrationAssets(html) {
   let result = html.replace(
-    /\s*<link\b[^>]*href=["']\/assets\/migration\.css["'][^>]*>\s*/gi,
+    /\s*<link\b[^>]*href=["']\/?assets\/migration\.css["'][^>]*>\s*/gi,
     "\n",
+  );
+  result = result.replace(/\s*<base\b[^>]*data-caersidi-base[^>]*>\s*/gi, "\n");
+  result = result.replace(
+    /<head([^>]*)>/i,
+    `<head$1>\n  <base data-caersidi-base href="/" />\n  <script>\n    document.querySelector("base[data-caersidi-base]").href =\n      location.hostname.endsWith(".github.io") ? "/caersidi-site/" : "/";\n  </script>`,
   );
   result = result.replace(
     /<\/head>/i,
-    '  <link rel="stylesheet" href="/assets/migration.css" />\n</head>',
+    '  <link rel="stylesheet" href="assets/migration.css" />\n</head>',
   );
   result = result.replace(
     /<\/body>/i,
-    '  <script src="/assets/asset-index.js"></script>\n  <script defer src="/assets/migration.js"></script>\n</body>',
+    '  <script src="assets/asset-index.js"></script>\n  <script defer src="assets/migration.js"></script>\n</body>',
   );
   return result;
 }
@@ -86,7 +107,9 @@ async function main() {
   const htmlFiles = await listHtmlFiles(SITE_DIR);
   for (const file of htmlFiles) {
     const html = await readFile(file, "utf8");
-    const prepared = injectMigrationAssets(fixLegacyMarkup(removeWebliumScripts(html), file));
+    const prepared = injectMigrationAssets(
+      makeDocumentBaseRelative(fixLegacyMarkup(removeWebliumScripts(html), file)),
+    );
     await writeFile(file, prepared, "utf8");
   }
   for (const file of await listFiles(SITE_DIR)) {

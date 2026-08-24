@@ -4,6 +4,12 @@
   const pickResponsiveStyle = (styles = []) =>
     styles.find((entry) => !entry.media || window.matchMedia(entry.media).matches) || styles[0];
 
+  const toSiteUrl = (value) => {
+    if (!value?.startsWith("/") || value.startsWith("//")) return value;
+    const siteBase = document.querySelector("base[data-caersidi-base]")?.href || `${location.origin}/`;
+    return `${siteBase.replace(/\/$/, "")}${value}`;
+  };
+
   const hydrateBackgrounds = () => {
     document
       .querySelectorAll('[data-component="background"][data-type="image"][data-hydrate]')
@@ -11,7 +17,7 @@
         try {
           const config = JSON.parse(element.dataset.hydrate || "{}");
           const selected = pickResponsiveStyle(config.style);
-          const url = selected?.url || config.fallbackurl;
+          const url = toSiteUrl(selected?.url || config.fallbackurl);
           if (!url) return;
           const target = element.querySelector(".parallax-inner, .background_2xT") || element;
           const background = selected?.background || "no-repeat 50% 50% / cover";
@@ -52,7 +58,7 @@
         );
         refs.forEach((resourceRef, index) => {
           const image = images[index];
-          const source = assetIndex[resourceRef];
+          const source = toSiteUrl(assetIndex[resourceRef]);
           if (image && source) image.src = source;
         });
       } catch {
