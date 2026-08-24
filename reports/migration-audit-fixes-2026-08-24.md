@@ -35,6 +35,17 @@ This report covers the five migration defects identified in the independent 30-U
 - The audit fails if the retired `ecard.forumkyiv.org` hostname reappears.
 - The generated migration runtime contains the desktop image fallback, corrected quantity scope, Region field, and project-aware Privacy Policy URL.
 
+## Published build verification
+
+- Code commits: `f169b90` and `703b102` (including the fallback-asset regression check).
+- GitHub Pages branch: `0a4515f`.
+- Preview: `https://phygit-company.github.io/caersidi-site/`.
+- All 23 published page routes returned `200 OK`.
+- All 72 unique `data-fallback-url` assets returned `200 OK` from GitHub Pages.
+- The published migration runtime, root canonical, `robots.txt`, and 23-entry `sitemap.xml` returned `200 OK` and contained the expected new values.
+
+The in-app browser could not replay the final click tests after its failed localhost connection was converted into a policy-blocked browser error page. No browser-policy workaround was used. The corrected interaction selectors and generated public runtime were verified directly; a short manual quantity/cookie smoke test remains advisable before the DNS cutover.
+
 ## Remaining limitation
 
 The contact and product-order flows still use `mailto:`. They do not submit to a server and do not retain a copy if the visitor has no configured email application or abandons the draft. This was not introduced by the remediation. A hosted form endpoint or small serverless handler is required for reliable delivery and storage.
