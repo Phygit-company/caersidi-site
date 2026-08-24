@@ -49,3 +49,16 @@ The in-app browser could not replay the final click tests after its failed local
 ## Remaining limitation
 
 The contact and product-order flows still use `mailto:`. They do not submit to a server and do not retain a copy if the visitor has no configured email application or abandons the draft. This was not introduced by the remediation. A hosted form endpoint or small serverless handler is required for reliable delivery and storage.
+
+## Follow-up UI remediation
+
+A second visual review identified additional Weblium components that depended on removed runtime code:
+
+| Finding | Resolution |
+| --- | --- |
+| The How it works block showed only a blurred low-quality placeholder | The YouTube URL is now read from the preserved component configuration and rendered as a privacy-enhanced embedded player. |
+| Contact Information, Contacts Exchange, and Meetings Scheduler did not switch | Native tab behavior, active/hidden states, keyboard navigation, and accessibility roles were restored. |
+| PARIMATCH, SPROOGEEK, and REVIZION images were covered by the card background | The media layer in reversed Use Cases cards now renders above the background layer. |
+| Current-page Help Center links reloaded because trailing slashes differed | Same-page paths are normalized; section links scroll without reload and the current Help Center link returns to the page top. |
+
+Local browser verification confirmed the YouTube player, all three How to Use panels, the three reversed Use Cases images, and reload-free Help Center navigation before publication.

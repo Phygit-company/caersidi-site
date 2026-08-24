@@ -152,8 +152,8 @@ function injectMigrationAssets(html) {
     '  <link rel="stylesheet" href="assets/migration.css" />\n</head>',
   );
   result = result.replace(
-    /<\/body>/i,
-    '  <script src="assets/asset-index.js"></script>\n  <script defer src="assets/migration.js"></script>\n</body>',
+    /\s*<\/body>/i,
+    '\n  <script src="assets/asset-index.js"></script>\n  <script defer src="assets/migration.js"></script>\n</body>',
   );
   return result;
 }
