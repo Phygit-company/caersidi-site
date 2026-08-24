@@ -1,0 +1,77 @@
+html {
+  scroll-behavior: smooth;
+}
+
+.hidden_3w8,
+[class*="hidden_"][data-animation] {
+  opacity: 1 !important;
+  transform: none !important;
+  visibility: visible !important;
+}
+
+[data-component="background"][data-type="image"] .background_2xT,
+[data-component="background"][data-type="image"] .parallax-inner {
+  background-attachment: scroll !important;
+}
+
+.migration-form-status {
+  margin-top: 12px;
+  color: #242424;
+  font: 14px/1.5 Arial, sans-serif;
+}
+
+.migration-cookie-banner {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1000;
+  max-width: 400px;
+  padding: 24px;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 4px 20px rgb(0 0 0 / 14%);
+  color: #212736;
+  font: 14px/1.45 Arial, sans-serif;
+  overflow: visible !important;
+}
+
+.migration-cookie-banner p {
+  display: block !important;
+  position: static !important;
+  width: auto !important;
+  margin: 0 0 18px !important;
+  padding: 0 !important;
+  opacity: 1 !important;
+  overflow: visible !important;
+  transform: none !important;
+  color: #212736 !important;
+  white-space: normal !important;
+}
+
+.migration-cookie-banner a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.migration-cookie-banner button {
+  min-width: 80px;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 3px;
+  background: #000;
+  color: #fff;
+  cursor: pointer;
+}
+
+.migration-cookie-banner * {
+  box-sizing: border-box;
+}
+
+@media (max-width: 767px) {
+  .migration-cookie-banner {
+    right: 16px;
+    bottom: 16px;
+    left: 16px;
+    max-width: none;
+  }
+}

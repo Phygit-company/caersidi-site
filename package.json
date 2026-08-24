@@ -1,0 +1,16 @@
+{
+  "name": "caersidi-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static GitHub Pages mirror of the Caer-Sidi E-Card website",
+  "scripts": {
+    "check": "node --check scripts/mirror.mjs && node --check scripts/prepare.mjs && node --check scripts/serve.mjs && node --check scripts/check-site.mjs && node --check src/migration.js && node scripts/check-site.mjs",
+    "mirror": "node scripts/mirror.mjs",
+    "prepare": "node scripts/prepare.mjs",
+    "serve": "node scripts/serve.mjs",
+    "sync": "node scripts/mirror.mjs && node scripts/prepare.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
