@@ -29,4 +29,12 @@ npm run sync
 
 ## Deployment
 
-Every push to `main` deploys the `site/` directory through GitHub Actions. The custom domain is intentionally not configured yet so DNS can be switched only after the GitHub Pages preview is approved.
+The organization currently disables GitHub Actions, so Pages publishes the root of the
+`gh-pages` branch. After preparing and committing a change on `main`, publish it with:
+
+```powershell
+npm run publish
+```
+
+The custom domain is intentionally not configured yet so DNS can be switched only after the
+GitHub Pages preview is approved.
