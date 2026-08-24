@@ -18,6 +18,32 @@ html {
   background-attachment: scroll !important;
 }
 
+.migration-video-frame {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+[data-component="collection-tabs"] [role="tab"] {
+  cursor: pointer;
+}
+
+[data-component="collection-tabs"] [role="tab"]:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+}
+
+[data-component="collection-tabs"] [data-collection-mode="tabs"][hidden] {
+  display: none !important;
+}
+
+.collection__item-wrapper--reverse__3jTO4 .collection__item-inner-aside__5YNe1 {
+  z-index: 1;
+}
+
 .migration-form-status {
   margin-top: 12px;
   color: #242424;

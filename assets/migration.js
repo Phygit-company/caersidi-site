@@ -10,6 +10,12 @@
     return `${siteBase.replace(/\/$/, "")}${value}`;
   };
 
+  const normalizePathname = (pathname) => pathname.replace(/\/+$/, "") || "/";
+
+  const isCurrentPage = (url) =>
+    url.origin === location.origin &&
+    normalizePathname(url.pathname) === normalizePathname(location.pathname);
+
   const hydrateBackgrounds = () => {
     document
       .querySelectorAll('[data-component="background"][data-type="image"][data-hydrate]')
@@ -40,6 +46,49 @@
     });
     document.querySelectorAll("img[data-fallback-url]").forEach((image) => {
       if (!image.getAttribute("src")) image.src = toSiteUrl(image.dataset.fallbackUrl);
+    });
+  };
+
+  const youtubeVideoId = (value) => {
+    try {
+      const url = new URL(value);
+      if (url.hostname === "youtu.be") return url.pathname.split("/").filter(Boolean)[0];
+      if (!/(^|\.)youtube\.com$/i.test(url.hostname)) return null;
+      if (url.pathname.startsWith("/embed/") || url.pathname.startsWith("/shorts/")) {
+        return url.pathname.split("/").filter(Boolean)[1];
+      }
+      return url.searchParams.get("v");
+    } catch {
+      return null;
+    }
+  };
+
+  const hydrateVideos = () => {
+    document.querySelectorAll('[data-component="video"][data-hydrate]').forEach((element) => {
+      try {
+        const config = JSON.parse(element.dataset.hydrate || "{}");
+        const videoId = youtubeVideoId(config.value?.url);
+        if (!videoId || !/^[\w-]+$/.test(videoId)) return;
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "placeholder-wrapper_1Zc";
+        const iframe = document.createElement("iframe");
+        iframe.className = "migration-video-frame";
+        iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}`;
+        iframe.title = "Caer-Sidi E-Card — How it works";
+        iframe.loading = "lazy";
+        iframe.referrerPolicy = "strict-origin-when-cross-origin";
+        iframe.allow =
+          "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+        iframe.allowFullscreen = true;
+        wrapper.append(iframe);
+        element.replaceChildren(wrapper);
+        element.classList.add("migration-video-player");
+        element.setAttribute("aria-label", "Video");
+        element.dataset.state = "loaded";
+      } catch {
+        // Keep the legacy preview if a video block has malformed data.
+      }
     });
   };
 
@@ -100,11 +149,19 @@
     document.querySelectorAll('a[href*="#"]').forEach((link) => {
       link.addEventListener("click", (event) => {
         const targetUrl = new URL(link.href, location.href);
-        const isCurrentPage =
-          targetUrl.origin === location.origin && targetUrl.pathname === location.pathname;
-        if (!isCurrentPage || !scrollToAnchor(targetUrl.hash)) return;
+        if (!isCurrentPage(targetUrl) || !scrollToAnchor(targetUrl.hash)) return;
         event.preventDefault();
-        history.pushState(null, "", `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
+        history.pushState(null, "", `${location.pathname}${targetUrl.search}${targetUrl.hash}`);
+      });
+    });
+
+    document.querySelectorAll('a[href]:not([href*="#"])').forEach((link) => {
+      link.addEventListener("click", (event) => {
+        const targetUrl = new URL(link.href, location.href);
+        if (!isCurrentPage(targetUrl)) return;
+        event.preventDefault();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        history.pushState(null, "", `${location.pathname}${targetUrl.search}`);
       });
     });
 
@@ -159,6 +216,64 @@
         }
       });
     });
+  };
+
+  const setupCollectionTabs = () => {
+    document
+      .querySelectorAll('[data-component="collection-tabs"]')
+      .forEach((container, groupIndex) => {
+        const navigation = container.querySelector('[data-collection-element="tabs-nav"]');
+        const navItems = [
+          ...(navigation?.querySelectorAll('[data-collection-element="nav-item"]') || []),
+        ];
+        const panelWrapper = container.querySelector(".tabs-items-wrapper");
+        const panels = [...(panelWrapper?.children || [])].filter(
+          (panel) => panel.dataset.collectionMode === "tabs",
+        );
+        if (!navItems.length || navItems.length !== panels.length) return;
+
+        navigation.setAttribute("role", "tablist");
+        const activate = (selectedIndex, focus = false) => {
+          navItems.forEach((navItem, index) => {
+            const active = index === selectedIndex;
+            const tabId = `migration-tab-${groupIndex}-${index}`;
+            const panelId = `migration-tab-panel-${groupIndex}-${index}`;
+            navItem.id = tabId;
+            navItem.dataset.active = String(active);
+            navItem.setAttribute("role", "tab");
+            navItem.setAttribute("aria-selected", String(active));
+            navItem.setAttribute("aria-controls", panelId);
+            navItem.tabIndex = active ? 0 : -1;
+            panels[index].id = panelId;
+            panels[index].dataset.hidden = String(!active);
+            panels[index].hidden = !active;
+            panels[index].setAttribute("role", "tabpanel");
+            panels[index].setAttribute("aria-labelledby", tabId);
+            if (active && focus) navItem.focus();
+          });
+        };
+
+        navItems.forEach((navItem, index) => {
+          navItem.addEventListener("click", () => activate(index));
+          navItem.addEventListener("keydown", (event) => {
+            let nextIndex = index;
+            if (event.key === "ArrowRight") nextIndex = (index + 1) % navItems.length;
+            else if (event.key === "ArrowLeft") {
+              nextIndex = (index - 1 + navItems.length) % navItems.length;
+            } else if (event.key === "Home") nextIndex = 0;
+            else if (event.key === "End") nextIndex = navItems.length - 1;
+            else if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            activate(nextIndex, true);
+          });
+        });
+
+        const initialIndex = Math.max(
+          0,
+          navItems.findIndex((navItem) => navItem.dataset.active === "true"),
+        );
+        activate(initialIndex);
+      });
   };
 
   const valueByPlaceholder = (form, placeholder) =>
@@ -248,10 +363,12 @@
   const boot = () => {
     hydrateBackgrounds();
     hydrateImages();
+    hydrateVideos();
     hydrateEmbeddedImages();
     revealAnimatedContent();
     setupAnchorNavigation();
     setupNavigation();
+    setupCollectionTabs();
     setupContactForms();
     setupProductOrdering();
     setupCookieBanner();
