@@ -58,6 +58,7 @@ const localTarget = async (rawReference, sourceFile) => {
 const files = await walk(siteDir);
 const sourceFiles = files.filter((file) => /\.(?:html|css)$/i.test(file));
 const failures = [];
+const htmlCache = new Map();
 
 for (const sourceFile of sourceFiles) {
   const contents = await readFile(sourceFile, "utf8");
@@ -83,6 +84,33 @@ for (const sourceFile of sourceFiles) {
   for (const reference of new Set(references)) {
     const missing = await localTarget(reference, referenceSource);
     if (missing) failures.push(`${path.relative(projectDir, sourceFile)} -> ${missing}`);
+  }
+
+  if (sourceFile.endsWith(".html")) {
+    const hashReferences = [...contents.matchAll(/\bhref=["']([^"']+#[^"']*)["']/gi)].map(
+      (match) => match[1],
+    );
+    for (const reference of new Set(hashReferences)) {
+      const resolved = new URL(reference, baseUrl);
+      if (resolved.origin !== baseUrl.origin || !resolved.hash || resolved.hash === "#") continue;
+      const decodedPath = decodeURIComponent(resolved.pathname).replace(/^\/+/, "");
+      const directTarget = path.resolve(siteDir, decodedPath);
+      const targetFile = directTarget.endsWith(".html")
+        ? directTarget
+        : path.join(directTarget, "index.html");
+      if (!(await exists(targetFile))) continue;
+      if (!htmlCache.has(targetFile)) htmlCache.set(targetFile, await readFile(targetFile, "utf8"));
+      const targetHtml = htmlCache.get(targetFile);
+      const anchor = decodeURIComponent(resolved.hash.slice(1));
+      const hasTarget =
+        targetHtml.includes(`id="${anchor}"`) ||
+        targetHtml.includes(`id='${anchor}'`) ||
+        targetHtml.includes(`data-anchor="${anchor}"`) ||
+        targetHtml.includes(`data-anchor='${anchor}'`);
+      if (!hasTarget) {
+        failures.push(`${path.relative(projectDir, sourceFile)} -> missing anchor ${reference}`);
+      }
+    }
   }
 }
 

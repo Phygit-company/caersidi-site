@@ -2,6 +2,10 @@ html {
   scroll-behavior: smooth;
 }
 
+[data-anchor] {
+  scroll-margin-top: 96px;
+}
+
 .hidden_3w8,
 [class*="hidden_"][data-animation] {
   opacity: 1 !important;

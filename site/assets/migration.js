@@ -73,6 +73,53 @@
     });
   };
 
+  const findAnchorTarget = (hash) => {
+    if (!hash || hash === "#") return null;
+    const anchor = decodeURIComponent(hash.slice(1));
+    const legacyTarget = document.getElementById(anchor);
+    return (
+      legacyTarget?.closest("[data-anchor]") ||
+      [...document.querySelectorAll("[data-anchor]")].find(
+        (element) => element.dataset.anchor === anchor,
+      ) ||
+      legacyTarget
+    );
+  };
+
+  const scrollToAnchor = (hash, behavior = "smooth") => {
+    const target = findAnchorTarget(hash);
+    if (!target) return false;
+    target.scrollIntoView({ behavior, block: "start" });
+    return true;
+  };
+
+  const setupAnchorNavigation = () => {
+    document.querySelectorAll('a[href*="#"]').forEach((link) => {
+      link.addEventListener("click", (event) => {
+        const targetUrl = new URL(link.href, location.href);
+        const isCurrentPage =
+          targetUrl.origin === location.origin && targetUrl.pathname === location.pathname;
+        if (!isCurrentPage || !scrollToAnchor(targetUrl.hash)) return;
+        event.preventDefault();
+        history.pushState(null, "", `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
+      });
+    });
+
+    window.addEventListener("hashchange", () => scrollToAnchor(location.hash));
+    if (location.hash) {
+      requestAnimationFrame(() => scrollToAnchor(location.hash, "auto"));
+      window.addEventListener(
+        "load",
+        () => {
+          [0, 250, 800].forEach((delay) => {
+            window.setTimeout(() => scrollToAnchor(location.hash, "auto"), delay);
+          });
+        },
+        { once: true },
+      );
+    }
+  };
+
   const setupNavigation = () => {
     document.querySelectorAll("[data-burger-button]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -191,9 +238,10 @@
   const boot = () => {
     hydrateBackgrounds();
     hydrateImages();
-    hydrateEmbeddedImages();
-    revealAnimatedContent();
-    setupNavigation();
+  hydrateEmbeddedImages();
+  revealAnimatedContent();
+  setupAnchorNavigation();
+  setupNavigation();
     setupContactForms();
     setupProductOrdering();
     setupCookieBanner();
