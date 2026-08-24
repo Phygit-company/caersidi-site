@@ -7,6 +7,7 @@ const PROJECT_DIR = path.resolve(SCRIPT_DIR, "..");
 const SITE_DIR = path.join(PROJECT_DIR, "site");
 const SOURCE_DIR = path.join(PROJECT_DIR, "src");
 const ASSET_DIR = path.join(SITE_DIR, "assets");
+const PRODUCTION_ORIGIN = "https://ecard.caersidi.net";
 
 async function listHtmlFiles(directory) {
   const files = [];
@@ -58,7 +59,66 @@ function fixLegacyMarkup(html, file) {
   return html
     .replace(/<html\b([^>]*?)\blang=["'][^"']*["']/i, `<html$1lang="${language}"`)
     .replaceAll("mailto:ten.idisreac%40troppus", "mailto:support@caersidi.net")
-    .replaceAll("ten.idisreac%40troppus", "support@caersidi.net");
+    .replaceAll("ten.idisreac%40troppus", "support@caersidi.net")
+    .replaceAll("https:\\/\\/ecard.forumkyiv.org\\/", "https:\\/\\/phyg.it\\/")
+    .replaceAll("https://ecard.forumkyiv.org/", "https://phyg.it/")
+    .replaceAll("ecard.forumkyiv.org", "phyg.it");
+}
+
+function pagePath(file) {
+  const relative = path.relative(SITE_DIR, file).split(path.sep).join("/");
+  if (relative === "index.html") return "/";
+  return `/${relative.replace(/\/index\.html$/, "")}`;
+}
+
+function pageUrl(file) {
+  return `${PRODUCTION_ORIGIN}${pagePath(file)}`;
+}
+
+function setTagAttribute(tag, name, value) {
+  const attribute = new RegExp(`\\b${name}\\s*=\\s*(["'])[^"']*\\1`, "i");
+  if (attribute.test(tag)) return tag.replace(attribute, `${name}="${value}"`);
+  return tag.replace(/\s*\/?\s*>$/, ` ${name}="${value}" />`);
+}
+
+function fixSeoUrls(html, file) {
+  const absoluteUrl = pageUrl(file);
+  let hasCanonical = false;
+  let hasOpenGraphUrl = false;
+  let result = html.replace(/<link\b[^>]*>/gi, (tag) => {
+    if (!/\brel\s*=\s*["']canonical["']/i.test(tag)) return tag;
+    hasCanonical = true;
+    return setTagAttribute(tag, "href", absoluteUrl);
+  });
+  result = result.replace(/<meta\b[^>]*>/gi, (tag) => {
+    if (!/\bproperty\s*=\s*["']og:url["']/i.test(tag)) return tag;
+    hasOpenGraphUrl = true;
+    return setTagAttribute(tag, "content", absoluteUrl);
+  });
+  const missingTags = [
+    hasCanonical ? "" : `  <link rel="canonical" href="${absoluteUrl}" />\n`,
+    hasOpenGraphUrl ? "" : `  <meta property="og:url" content="${absoluteUrl}" />\n`,
+  ].join("");
+  return missingTags ? result.replace(/<\/head>/i, `${missingTags}</head>`) : result;
+}
+
+async function writeSeoFiles(htmlFiles) {
+  const urls = htmlFiles.map(pageUrl).sort((left, right) => left.localeCompare(right));
+  const sitemap = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...urls.map((url) => `  <url><loc>${url}</loc></url>`),
+    "</urlset>",
+    "",
+  ].join("\n");
+  const robots = [
+    "User-agent: *",
+    "Allow: /",
+    `Sitemap: ${PRODUCTION_ORIGIN}/sitemap.xml`,
+    "",
+  ].join("\n");
+  await writeFile(path.join(SITE_DIR, "sitemap.xml"), sitemap, "utf8");
+  await writeFile(path.join(SITE_DIR, "robots.txt"), robots, "utf8");
 }
 
 function makeDocumentBaseRelative(html) {
@@ -98,6 +158,10 @@ function injectMigrationAssets(html) {
   return result;
 }
 
+function cleanTrailingWhitespace(html) {
+  return html.replace(/[ \t]+$/gm, "");
+}
+
 async function main() {
   await mkdir(ASSET_DIR, { recursive: true });
   await cp(path.join(SOURCE_DIR, "migration.css"), path.join(ASSET_DIR, "migration.css"));
@@ -107,11 +171,17 @@ async function main() {
   const htmlFiles = await listHtmlFiles(SITE_DIR);
   for (const file of htmlFiles) {
     const html = await readFile(file, "utf8");
-    const prepared = injectMigrationAssets(
-      makeDocumentBaseRelative(fixLegacyMarkup(removeWebliumScripts(html), file)),
+    const prepared = cleanTrailingWhitespace(
+      injectMigrationAssets(
+        fixSeoUrls(
+          makeDocumentBaseRelative(fixLegacyMarkup(removeWebliumScripts(html), file)),
+          file,
+        ),
+      ),
     );
     await writeFile(file, prepared, "utf8");
   }
+  await writeSeoFiles(htmlFiles);
   for (const file of await listFiles(SITE_DIR)) {
     if (!file.endsWith(".js")) continue;
     if (file === path.join(ASSET_DIR, "asset-index.js")) continue;

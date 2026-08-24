@@ -1,0 +1,40 @@
+# Caer-Sidi migration audit remediation
+
+Date: 24 August 2026
+
+## Scope
+
+This report covers the five migration defects identified in the independent 30-URL review, plus the broken Kyiv International Economic Forum demo links.
+
+## Remediation status
+
+| Finding | Status | Resolution |
+| --- | --- | --- |
+| Desktop fallback images were not hydrated | Fixed | Images with `data-fallback-url` now receive a site-aware `src` when no desktop source is present. |
+| Product quantity controls did not update | Fixed | Quantity inputs are now resolved from the enclosing `.js-product-specs-quantity` component; updates also dispatch `input` and `change` events. |
+| Cookie banner Privacy Policy URL returned 404 on GitHub Pages | Fixed | The URL is now produced by the project-path-aware `toSiteUrl()` helper. |
+| Contact form omitted the selected region | Fixed | The selected USA, Poland, or Ukraine value is now included as `Region` in the generated email body. |
+| Canonical/OG URLs were relative; robots and sitemap were missing | Fixed | All 23 pages now have absolute production canonical and `og:url` values. `robots.txt` and a 23-URL `sitemap.xml` are generated during preparation. |
+| Kyiv Forum demo hostname no longer resolved | Fixed | Six demo links and three visible hostname references were changed from `ecard.forumkyiv.org` to `phyg.it`. |
+
+## Kyiv Forum verification
+
+`phyg.it` resolves to `34.102.234.207`. Both URL shapes used by the site were checked over HTTPS on 24 August 2026 and returned `200 OK`:
+
+- `https://phyg.it/asset/b868790b-d634-4400-ac26-533ab42db87f`
+- `https://phyg.it/assets/KIEFECARDSITEDEMO241120210001MMUXGCC4BSF`
+
+## Verification
+
+- `npm run prepare` completed for 23 HTML pages.
+- `npm run check` completed for 68 HTML/CSS files.
+- All local asset references and linked hash targets resolve.
+- All 23 canonical and Open Graph URLs match their expected production URLs.
+- `robots.txt` references the production sitemap.
+- `sitemap.xml` contains all 23 migrated pages.
+- The audit fails if the retired `ecard.forumkyiv.org` hostname reappears.
+- The generated migration runtime contains the desktop image fallback, corrected quantity scope, Region field, and project-aware Privacy Policy URL.
+
+## Remaining limitation
+
+The contact and product-order flows still use `mailto:`. They do not submit to a server and do not retain a copy if the visitor has no configured email application or abandons the draft. This was not introduced by the remediation. A hosted form endpoint or small serverless handler is required for reliable delivery and storage.

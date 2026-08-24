@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const projectDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const siteDir = path.join(projectDir, "site");
 const baseUrl = new URL("https://static.caersidi.test/");
+const productionOrigin = "https://ecard.caersidi.net";
 
 const walk = async (directory) => {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -60,8 +61,22 @@ const sourceFiles = files.filter((file) => /\.(?:html|css)$/i.test(file));
 const failures = [];
 const htmlCache = new Map();
 
+const pageUrl = (file) => {
+  const relative = path.relative(siteDir, file).split(path.sep).join("/");
+  const route = relative === "index.html" ? "/" : `/${relative.replace(/\/index\.html$/, "")}`;
+  return `${productionOrigin}${route}`;
+};
+
+const tagAttribute = (tag, name) => {
+  const match = tag.match(new RegExp(`\\b${name}\\s*=\\s*(["'])([^"']*)\\1`, "i"));
+  return match?.[2] || "";
+};
+
 for (const sourceFile of sourceFiles) {
   const contents = await readFile(sourceFile, "utf8");
+  if (contents.includes("ecard.forumkyiv.org")) {
+    failures.push(`${path.relative(projectDir, sourceFile)} -> stale Kyiv Forum domain`);
+  }
   const referenceSource =
     sourceFile.endsWith(".html") && contents.includes("data-caersidi-base")
       ? path.join(siteDir, "index.html")
@@ -87,6 +102,20 @@ for (const sourceFile of sourceFiles) {
   }
 
   if (sourceFile.endsWith(".html")) {
+    const expectedPageUrl = pageUrl(sourceFile);
+    const canonicalTag = [...contents.matchAll(/<link\b[^>]*>/gi)]
+      .map((match) => match[0])
+      .find((tag) => tagAttribute(tag, "rel").toLowerCase() === "canonical");
+    const openGraphUrlTag = [...contents.matchAll(/<meta\b[^>]*>/gi)]
+      .map((match) => match[0])
+      .find((tag) => tagAttribute(tag, "property").toLowerCase() === "og:url");
+    if (tagAttribute(canonicalTag || "", "href") !== expectedPageUrl) {
+      failures.push(`${path.relative(projectDir, sourceFile)} -> invalid canonical URL`);
+    }
+    if (tagAttribute(openGraphUrlTag || "", "content") !== expectedPageUrl) {
+      failures.push(`${path.relative(projectDir, sourceFile)} -> invalid og:url`);
+    }
+
     const hashReferences = [...contents.matchAll(/\bhref=["']([^"']+#[^"']*)["']/gi)].map(
       (match) => match[1],
     );
@@ -114,10 +143,32 @@ for (const sourceFile of sourceFiles) {
   }
 }
 
+const robotsFile = path.join(siteDir, "robots.txt");
+const sitemapFile = path.join(siteDir, "sitemap.xml");
+if (!(await exists(robotsFile))) failures.push("site/robots.txt -> missing");
+if (!(await exists(sitemapFile))) failures.push("site/sitemap.xml -> missing");
+if (await exists(robotsFile)) {
+  const robots = await readFile(robotsFile, "utf8");
+  if (!robots.includes(`Sitemap: ${productionOrigin}/sitemap.xml`)) {
+    failures.push("site/robots.txt -> missing production sitemap URL");
+  }
+}
+if (await exists(sitemapFile)) {
+  const sitemap = await readFile(sitemapFile, "utf8");
+  for (const htmlFile of sourceFiles.filter((file) => file.endsWith(".html"))) {
+    const url = pageUrl(htmlFile);
+    if (!sitemap.includes(`<loc>${url}</loc>`)) {
+      failures.push(`site/sitemap.xml -> missing ${url}`);
+    }
+  }
+}
+
 if (failures.length) {
   console.error(`Found ${failures.length} missing local reference(s):`);
   failures.slice(0, 50).forEach((failure) => console.error(`- ${failure}`));
   process.exitCode = 1;
 } else {
-  console.log(`Checked ${sourceFiles.length} HTML/CSS files: all local references resolve.`);
+  console.log(
+    `Checked ${sourceFiles.length} HTML/CSS files: local references and SEO metadata are valid.`,
+  );
 }
