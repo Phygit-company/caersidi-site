@@ -84,7 +84,9 @@ for (const sourceFile of sourceFiles) {
   const references = [];
 
   if (sourceFile.endsWith(".html")) {
-    for (const match of contents.matchAll(/\b(?:href|src|data-src)=["']([^"']+)["']/gi)) {
+    for (const match of contents.matchAll(
+      /\b(?:href|src|data-src|data-fallback-url)=["']([^"']+)["']/gi,
+    )) {
       references.push(match[1]);
     }
     for (const match of contents.matchAll(/\b(?:srcset|data-srcset)=["']([^"']+)["']/gi)) {
