@@ -9,7 +9,7 @@ Static, self-hosted copy of the Caer-Sidi website prepared for GitHub Pages.
 - Original self-hosted images, illustrations, icons, and animated GIFs.
 - A small replacement runtime for responsive backgrounds, lazy images, mobile navigation, contact requests, product-order requests, and the cookie notice.
 
-The contact form and product buttons open the visitor's email application addressed to `support@caersidi.net`. This avoids keeping the Weblium form and checkout backends after the Weblium subscription ends.
+Contact and product-order forms submit to the Phygit Forms API, which durably stores each request before delivering it to the `caersidi.net` and `All Leads` Google Sheets tabs. If the API cannot be reached, each form offers a pre-filled email fallback addressed to `support@caersidi.net`.
 
 ## Local preview
 

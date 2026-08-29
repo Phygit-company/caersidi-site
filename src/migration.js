@@ -276,38 +276,163 @@
       });
   };
 
-  const valueByPlaceholder = (form, placeholder) =>
-    form.querySelector(`[placeholder="${placeholder}"]`)?.value?.trim() || "";
+  const FORMS_API_BASE = "https://phygit-forms-api-612810179749.europe-central2.run.app";
+  const CONTACT_FORM_KEY = "frm_r_7bpAtKdGghJXCzslvuEe5TN1_YuRXZ";
+  const ORDER_FORM_KEY = "frm_0GxJCPtLoWu4ucyqND1hajoWqbfzQYoh";
 
-  const selectedValue = (form) => form.querySelector("select")?.value?.trim() || "";
+  const contactMessages = {
+    en: {
+      sending: "Sending your message…",
+      success: "Thanks — your message has been received.",
+      failure: "We could not save your message. Please try again or email us.",
+      fallback: "Email support@caersidi.net",
+    },
+    uk: {
+      sending: "Надсилаємо ваше повідомлення…",
+      success: "Дякуємо — ваше повідомлення отримано.",
+      failure: "Не вдалося зберегти повідомлення. Спробуйте ще раз або напишіть нам.",
+      fallback: "Написати на support@caersidi.net",
+    },
+    ru: {
+      sending: "Отправляем ваше сообщение…",
+      success: "Спасибо — ваше сообщение получено.",
+      failure: "Не удалось сохранить сообщение. Попробуйте снова или напишите нам.",
+      fallback: "Написать на support@caersidi.net",
+    },
+  };
+
+  const currentContactMessages = () =>
+    contactMessages[document.documentElement.lang] || contactMessages.en;
+
+  const submissionKey = () =>
+    typeof crypto?.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `caersidi-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  const formContext = () => {
+    const params = new URLSearchParams(location.search);
+    return {
+      page_url: location.href,
+      utm_source: params.get("utm_source") || "",
+      utm_medium: params.get("utm_medium") || "",
+      utm_campaign: params.get("utm_campaign") || "",
+    };
+  };
+
+  const contactValues = (form) => {
+    const textInputs = [...form.querySelectorAll('input[type="text"]:not(.honey-field)')];
+    const howHeard = textInputs[1]?.value?.trim() || "";
+    const message = form.querySelector("textarea")?.value?.trim() || "";
+    return {
+      name: textInputs[0]?.value?.trim() || "",
+      phone: form.querySelector('input[type="tel"]')?.value?.trim() || "",
+      email: form.querySelector('input[type="email"]')?.value?.trim() || "",
+      howHeard,
+      country: form.querySelector("select")?.value?.trim() || "",
+      message: [message, howHeard && `How heard: ${howHeard}`].filter(Boolean).join("\n\n"),
+      website: form.querySelector(".honey-field")?.value?.trim() || "",
+    };
+  };
+
+  const contactMailto = (values) => {
+    const body = [
+      ["Name", values.name],
+      ["Phone", values.phone],
+      ["Email", values.email],
+      ["Source", values.howHeard],
+      ["Region", values.country],
+      ["Message", values.message],
+    ]
+      .filter(([, value]) => value)
+      .map(([label, value]) => `${label}: ${value}`)
+      .join("\n\n");
+    return `mailto:support@caersidi.net?subject=${encodeURIComponent(
+      "Caer-Sidi website enquiry",
+    )}&body=${encodeURIComponent(body)}`;
+  };
+
+  const formStatus = (form) => {
+    let status = form.querySelector(".migration-form-status");
+    if (!status) {
+      status = document.createElement("p");
+      status.className = "migration-form-status";
+      status.setAttribute("role", "status");
+      status.setAttribute("aria-live", "polite");
+      form.append(status);
+    }
+    return status;
+  };
 
   const setupContactForms = () => {
     document.querySelectorAll("form").forEach((form) => {
       if (!form.querySelector('input[type="email"]')) return;
-      form.addEventListener("submit", (event) => {
+      form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const fields = [
-          ["Name", valueByPlaceholder(form, "Enter your full name*")],
-          ["Phone", valueByPlaceholder(form, "Enter your phone number*")],
-          ["Email", valueByPlaceholder(form, "Enter your email*")],
-          ["Source", valueByPlaceholder(form, "How did you hear about us?")],
-          ["Region", selectedValue(form)],
-          ["Message", valueByPlaceholder(form, "Type your message")],
-        ].filter(([, value]) => value);
-        const body = fields.map(([label, value]) => `${label}: ${value}`).join("\n\n");
-        const mailto = `mailto:support@caersidi.net?subject=${encodeURIComponent(
-          "Caer-Sidi website enquiry",
-        )}&body=${encodeURIComponent(body)}`;
+        if (!form.reportValidity()) return;
 
-        let status = form.querySelector(".migration-form-status");
-        if (!status) {
-          status = document.createElement("p");
-          status.className = "migration-form-status";
-          status.setAttribute("role", "status");
-          form.append(status);
+        const values = contactValues(form);
+        const messages = currentContactMessages();
+        const status = formStatus(form);
+        const submit = form.querySelector('[type="submit"]');
+        const originalLabel = submit?.textContent || "";
+        const idempotencyKey = form.dataset.idempotencyKey || submissionKey();
+        form.dataset.idempotencyKey = idempotencyKey;
+
+        status.className = "migration-form-status";
+        status.textContent = messages.sending;
+        if (submit) {
+          submit.disabled = true;
+          submit.setAttribute("aria-busy", "true");
         }
-        status.textContent = "Your email application will open to send this message.";
-        window.location.href = mailto;
+
+        try {
+          const response = await fetch(
+            `${FORMS_API_BASE}/v1/forms/${CONTACT_FORM_KEY}/submissions`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Idempotency-Key": idempotencyKey,
+              },
+              body: JSON.stringify({
+                fields: {
+                  name: values.name,
+                  phone: values.phone,
+                  email: values.email,
+                  country: values.country,
+                  message: values.message,
+                  how_heard: values.howHeard,
+                  privacy_consent: false,
+                  website: values.website,
+                },
+                context: formContext(),
+              }),
+            },
+          );
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || !result.accepted) {
+            throw new Error(result.error || "submission_failed");
+          }
+
+          form.reset();
+          delete form.dataset.idempotencyKey;
+          status.classList.add("is-success");
+          status.textContent = messages.success;
+        } catch (error) {
+          console.error("caersidi_contact_submission_failed", error);
+          status.classList.add("is-error");
+          status.textContent = `${messages.failure} `;
+          const fallback = document.createElement("a");
+          fallback.href = contactMailto(values);
+          fallback.textContent = messages.fallback;
+          status.append(fallback);
+        } finally {
+          if (submit) {
+            submit.disabled = false;
+            submit.removeAttribute("aria-busy");
+            submit.textContent = originalLabel;
+          }
+        }
       });
     });
   };
@@ -335,11 +460,166 @@
         const title = document.querySelector('h1[aria-label^="Product:"]')?.textContent?.trim() ||
           document.title;
         const quantity = document.querySelector('input[aria-label="Product quantity"]')?.value || "1";
-        const body = `Product: ${title}\nQuantity: ${quantity}\n\nPlease contact me to complete this order.`;
-        window.location.href = `mailto:support@caersidi.net?subject=${encodeURIComponent(
-          `Order: ${title}`,
-        )}&body=${encodeURIComponent(body)}`;
+        openOrderDialog({ title, quantity, trigger: button });
       });
+    });
+  };
+
+  const orderMailto = ({ title, quantity, name, email, phone, notes }) => {
+    const body = [
+      ["Product", title],
+      ["Quantity", quantity],
+      ["Name", name],
+      ["Email", email],
+      ["Phone", phone],
+      ["Notes", notes],
+    ]
+      .filter(([, value]) => value)
+      .map(([label, value]) => `${label}: ${value}`)
+      .join("\n\n");
+    return `mailto:support@caersidi.net?subject=${encodeURIComponent(
+      `Order: ${title}`,
+    )}&body=${encodeURIComponent(body)}`;
+  };
+
+  const openOrderDialog = ({ title, quantity, trigger }) => {
+    document.querySelector(".migration-order-overlay")?.remove();
+
+    const overlay = document.createElement("div");
+    overlay.className = "migration-order-overlay";
+    const dialog = document.createElement("section");
+    dialog.className = "migration-order-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-labelledby", "migration-order-title");
+    dialog.innerHTML = `
+      <button class="migration-order-close" type="button" aria-label="Close order form">×</button>
+      <p class="migration-order-eyebrow">Caer Sidi™</p>
+      <h2 id="migration-order-title">Complete your order enquiry</h2>
+      <p class="migration-order-product"></p>
+      <form class="migration-order-form">
+        <label>
+          <span>Name *</span>
+          <input name="name" type="text" autocomplete="name" required />
+        </label>
+        <label>
+          <span>Email *</span>
+          <input name="email" type="email" autocomplete="email" required />
+        </label>
+        <label>
+          <span>Phone</span>
+          <input name="phone" type="tel" autocomplete="tel" />
+        </label>
+        <label>
+          <span>Comment</span>
+          <textarea name="notes" rows="4" placeholder="Delivery country, preferred contact time, or other details"></textarea>
+        </label>
+        <input class="migration-order-honeypot" name="website" type="text" autocomplete="off" tabindex="-1" aria-hidden="true" />
+        <div class="migration-order-actions">
+          <button class="migration-order-submit" type="submit">Send order enquiry</button>
+          <button class="migration-order-cancel" type="button">Cancel</button>
+        </div>
+        <p class="migration-form-status" role="status" aria-live="polite"></p>
+      </form>
+    `;
+    dialog.querySelector(".migration-order-product").textContent = `${title} · quantity ${quantity}`;
+    overlay.append(dialog);
+    document.body.append(overlay);
+    document.body.classList.add("migration-order-open");
+
+    const form = dialog.querySelector("form");
+    const close = () => {
+      document.body.classList.remove("migration-order-open");
+      overlay.remove();
+      document.removeEventListener("keydown", onKeyDown);
+      trigger?.focus();
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") close();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) close();
+    });
+    dialog.querySelector(".migration-order-close").addEventListener("click", close);
+    dialog.querySelector(".migration-order-cancel").addEventListener("click", close);
+    form.querySelector('input[name="name"]').focus();
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+
+      const data = new FormData(form);
+      const values = {
+        title,
+        quantity,
+        name: String(data.get("name") || "").trim(),
+        email: String(data.get("email") || "").trim(),
+        phone: String(data.get("phone") || "").trim(),
+        notes: String(data.get("notes") || "").trim(),
+        website: String(data.get("website") || ""),
+      };
+      const status = form.querySelector(".migration-form-status");
+      const submit = form.querySelector('[type="submit"]');
+      const idempotencyKey = form.dataset.idempotencyKey || submissionKey();
+      form.dataset.idempotencyKey = idempotencyKey;
+      status.className = "migration-form-status";
+      status.textContent = "Sending your order enquiry…";
+      submit.disabled = true;
+      submit.setAttribute("aria-busy", "true");
+
+      const message = [
+        "Product order enquiry",
+        `Product: ${values.title}`,
+        `Quantity: ${values.quantity}`,
+        values.notes && `Notes: ${values.notes}`,
+      ].filter(Boolean).join("\n");
+
+      try {
+        const response = await fetch(
+          `${FORMS_API_BASE}/v1/forms/${ORDER_FORM_KEY}/submissions`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Idempotency-Key": idempotencyKey,
+            },
+            body: JSON.stringify({
+              fields: {
+                name: values.name,
+                email: values.email,
+                phone: values.phone,
+                product: values.title,
+                quantity: values.quantity,
+                message,
+                privacy_consent: false,
+                website: values.website,
+              },
+              context: formContext(),
+            }),
+          },
+        );
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.accepted) {
+          throw new Error(result.error || "submission_failed");
+        }
+
+        form.reset();
+        delete form.dataset.idempotencyKey;
+        status.classList.add("is-success");
+        status.textContent = "Thanks — your order enquiry has been received.";
+      } catch (error) {
+        console.error("caersidi_order_submission_failed", error);
+        status.classList.add("is-error");
+        status.textContent = "We could not save the enquiry. Please try again or ";
+        const fallback = document.createElement("a");
+        fallback.href = orderMailto(values);
+        fallback.textContent = "email support@caersidi.net";
+        status.append(fallback, ".");
+      } finally {
+        submit.disabled = false;
+        submit.removeAttribute("aria-busy");
+      }
     });
   };
 
